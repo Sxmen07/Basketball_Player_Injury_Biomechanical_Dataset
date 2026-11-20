@@ -1,0 +1,338 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!DOCTYPE html>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Injury Severity Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a court-line split — left column is the input "lineup card" (stacked
+   selectors like a scouting sheet), right column is the verdict panel with a severity
+   gauge and the rule trail that produced it. On phone the verdict stacks below the form. */
+:root{
+  --bg:#f4f5f1; --panel:#ffffff; --line:#d8dcd1; --ink:#15190f; --ink-soft:#5b6354;
+  --accent:#2f5d34; --accent-ink:#ffffff;
+  --mild:#2f7d4f; --mild-bg:#e3f2e6;
+  --moderate:#a06a12; --moderate-bg:#faeedb;
+  --severe:#b3362b; --severe-bg:#fbe3e0;
+  --unknown:#5b6354; --unknown-bg:#e9eae4;
+  --court:#c7501f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#13150f; --panel:#1b1e15; --line:#33372a; --ink:#edeee6; --ink-soft:#a7ad99;
+    --accent:#6fae76; --accent-ink:#0c150d;
+    --mild:#7fd79b; --mild-bg:#163322;
+    --moderate:#e8b45c; --moderate-bg:#3a2c11;
+    --severe:#f28e85; --severe-bg:#3d1613;
+    --unknown:#a7ad99; --unknown-bg:#272a20;
+    --court:#e8794a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#13150f; --panel:#1b1e15; --line:#33372a; --ink:#edeee6; --ink-soft:#a7ad99;
+  --accent:#6fae76; --accent-ink:#0c150d;
+  --mild:#7fd79b; --mild-bg:#163322;
+  --moderate:#e8b45c; --moderate-bg:#3a2c11;
+  --severe:#f28e85; --severe-bg:#3d1613;
+  --unknown:#a7ad99; --unknown-bg:#272a20;
+  --court:#e8794a;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Inter",system-ui,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+.wrap{max-width:980px; margin:0 auto; padding-block:40px 64px;}
+h1,h2,h3{font-family:"Space Grotesk",system-ui,sans-serif; margin:0; text-wrap:balance;}
+.eyebrow{
+  font:600 11px/1 "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--court); display:flex; align-items:center; gap:8px; margin-bottom:10px;
+}
+.eyebrow::before{content:""; width:20px; height:2px; background:var(--court); display:inline-block;}
+header.page{margin-bottom:28px;}
+header.page h1{font-size:clamp(28px,4vw,38px); line-height:1.12;}
+header.page p{color:var(--ink-soft); font-size:15px; max-width:56ch; margin:10px 0 0;}
+
+.board{display:grid; grid-template-columns:1fr 1fr; gap:22px;}
+@media (max-width:760px){ .board{grid-template-columns:1fr;} }
+
+.panel{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:22px 22px 24px;
+}
+.panel h2{font-size:15px; letter-spacing:.02em;}
+.panel h2 small{display:block; font:500 12px/1.4 "Inter",sans-serif; color:var(--ink-soft); margin-top:4px; font-weight:500; letter-spacing:0;}
+
+.field{margin-top:18px;}
+.field label{
+  display:block; font:600 12px/1 "JetBrains Mono",monospace; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-soft); margin-bottom:8px;
+}
+.seg{display:flex; flex-wrap:wrap; gap:6px;}
+.seg button{
+  flex:1 1 auto; min-width:fit-content; appearance:none; border:1px solid var(--line);
+  background:var(--bg); color:var(--ink); font:600 13.5px "Inter",sans-serif;
+  padding:9px 12px; border-radius:9px; cursor:pointer; transition:background .12s,border-color .12s,color .12s;
+}
+.seg button:hover{border-color:var(--court);}
+.seg button:focus-visible{outline:2px solid var(--court); outline-offset:2px;}
+.seg button[aria-pressed="true"]{
+  background:var(--accent); border-color:var(--accent); color:var(--accent-ink);
+}
+.seg button .sub{display:block; font:500 10.5px "JetBrains Mono",monospace; opacity:.75; margin-top:1px; letter-spacing:.02em;}
+
+.verdict{position:sticky; top:16px;}
+.gauge{
+  border-radius:12px; padding:20px; background:var(--unknown-bg); color:var(--unknown);
+  transition:background .18s, color .18s;
+}
+.gauge .label{font:600 11px "JetBrains Mono",monospace; letter-spacing:.14em; text-transform:uppercase; opacity:.85;}
+.gauge .value{font:700 32px "Space Grotesk",sans-serif; margin-top:6px; line-height:1;}
+.gauge .meter{display:flex; gap:5px; margin-top:16px;}
+.gauge .meter i{flex:1; height:7px; border-radius:99px; background:currentColor; opacity:.18;}
+.gauge .meter i.on{opacity:1;}
+
+.trail{margin-top:18px;}
+.trail h3{font:600 11px "JetBrains Mono",monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:10px;}
+.rule{
+  display:flex; gap:10px; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;
+}
+.rule:first-child{border-top:none;}
+.rule .num{
+  flex:none; width:22px; height:22px; border-radius:50%; background:var(--bg); border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font:600 11px "JetBrains Mono",monospace; color:var(--ink-soft);
+}
+.rule.fired .num{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+.rule .txt{color:var(--ink-soft); line-height:1.45;}
+.rule.fired .txt{color:var(--ink);}
+.rule .txt b{color:var(--ink); font-weight:600;}
+
+.note{
+  margin-top:16px; padding:12px 14px; border-radius:10px; background:var(--moderate-bg); color:var(--moderate);
+  font-size:13px; line-height:1.5; display:none;
+}
+.note.show{display:block;}
+.note.conflict{background:var(--severe-bg); color:var(--severe);}
+
+footer.basis{
+  margin-top:28px; border-top:1px solid var(--line); padding-top:16px; color:var(--ink-soft); font-size:12.5px; line-height:1.6;
+}
+footer.basis code{font-family:"JetBrains Mono",monospace; background:var(--bg); padding:1px 5px; border-radius:4px; border:1px solid var(--line);}
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Rule-based classifier</div>
+    <h1>Injury Severity Predictor</h1>
+    <p>Set a player's height, weight, position and injury type to see which association rule fires and what severity it predicts. Built from the 7 direct severity rules mined across the Basketball_PatientInjury rule sets (Weka, confidence-ranked).</p>
+  </header>
+
+  <div class="board">
+    <section class="panel" aria-label="Inputs">
+      <h2>Player attributes<small>Pick one value per row</small></h2>
+
+      <div class="field">
+        <label for="g-height">Height_cm</label>
+        <div class="seg" id="g-height" role="group" aria-label="Height">
+          <button type="button" data-group="height" data-value="Low">Low</button>
+          <button type="button" data-group="height" data-value="Moderate">Moderate</button>
+          <button type="button" data-group="height" data-value="High">High</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="g-weight">Weight_kg</label>
+        <div class="seg" id="g-weight" role="group" aria-label="Weight">
+          <button type="button" data-group="weight" data-value="Light">Light</button>
+          <button type="button" data-group="weight" data-value="Mid">Mid</button>
+          <button type="button" data-group="weight" data-value="Heavy">Heavy</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="g-position">Position</label>
+        <div class="seg" id="g-position" role="group" aria-label="Position">
+          <button type="button" data-group="position" data-value="Guard">Guard</button>
+          <button type="button" data-group="position" data-value="Center">Center</button>
+          <button type="button" data-group="position" data-value="Forward">Forward</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="g-injury">Injury_Type</label>
+        <div class="seg" id="g-injury" role="group" aria-label="Injury type">
+          <button type="button" data-group="injury" data-value="Upper_Extremity">Upper<span class="sub">Extremity</span></button>
+          <button type="button" data-group="injury" data-value="Lower_Extremity">Lower<span class="sub">Extremity</span></button>
+        </div>
+      </div>
+
+      <footer class="basis">
+        Rules are association patterns mined from the data, not a medical or causal model. A
+        prediction with no fired rule is reported as <code>Unknown</code> rather than guessed.
+      </footer>
+    </section>
+
+    <section class="panel verdict" aria-label="Prediction">
+      <h2>Predicted Injury_Severity</h2>
+      <div class="gauge" id="gauge">
+        <div class="label">Prediction</div>
+        <div class="value" id="gauge-value">Select all four fields</div>
+        <div class="meter" id="gauge-meter">
+          <i></i><i></i><i></i>
+        </div>
+      </div>
+
+      <div class="note" id="note"></div>
+
+      <div class="trail">
+        <h3>Rule trail (checked in priority order)</h3>
+        <div id="rules"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var state = { height:null, weight:null, position:null, injury:null };
+
+  var RULES = [
+    { id:1, severity:"Severe",
+      test:function(s){ return s.height==="Low" && s.injury==="Lower_Extremity"; },
+      text:function(){ return "<b>Height = Low</b> and <b>Injury_Type = Lower_Extremity</b> → Severe"; },
+      source:"31–40 #10, confirmed 41–50 context" },
+    { id:2, severity:"Severe",
+      test:function(s){ return s.position==="Guard" && s.injury==="Lower_Extremity"; },
+      text:function(){ return "<b>Position = Guard</b> and <b>Injury_Type = Lower_Extremity</b> → Severe"; },
+      source:"41–50 #6" },
+    { id:3, severity:"Severe",
+      test:function(s){ return s.height==="High" && s.weight==="Heavy"; },
+      text:function(){ return "<b>Height = High</b> and <b>Weight_kg = Heavy</b> → Severe"; },
+      source:"41–50 #4" },
+    { id:4, severity:"Conflict",
+      test:function(s){ return s.height==="Moderate"; },
+      text:function(){ return "<b>Height = Moderate</b> → Severe (21–30 #8) conflicts with Mild (41–50 #9)"; },
+      source:"21–30 #8 vs 41–50 #9 — unresolved conflict" },
+    { id:5, severity:"Moderate",
+      test:function(s){ return s.height==="Low"; },
+      text:function(){ return "<b>Height = Low</b> → Moderate (general rule, overridden by #1 above)"; },
+      source:"1–10 #9" },
+    { id:6, severity:"Moderate",
+      test:function(s){ return s.position==="Forward"; },
+      text:function(){ return "<b>Position = Forward</b> → Moderate"; },
+      source:"11–20 #6" }
+  ];
+
+  var LABELS = {
+    Severe:"Severe", Moderate:"Moderate", Mild:"Mild",
+    Conflict:"Conflict — Severe or Mild", Unknown:"Unknown — not covered"
+  };
+
+  function allSet(s){ return s.height && s.weight && s.position && s.injury; }
+
+  function predict(s){
+    if(!allSet(s)) return { outcome:null, fired:[], reason:null };
+    for(var i=0;i<RULES.length;i++){
+      if(RULES[i].test(s)){
+        return { outcome: RULES[i].severity, fired:[RULES[i].id], reason:RULES[i] };
+      }
+    }
+    return { outcome:"Unknown", fired:[], reason:null };
+  }
+
+  function render(){
+    var groups = document.querySelectorAll(".seg");
+    groups.forEach(function(seg){
+      var key = seg.firstElementChild.dataset.group;
+      seg.querySelectorAll("button").forEach(function(btn){
+        btn.setAttribute("aria-pressed", state[key]===btn.dataset.value ? "true" : "false");
+      });
+    });
+
+    var result = predict(state);
+    var gauge = document.getElementById("gauge");
+    var val = document.getElementById("gauge-value");
+    var meter = document.getElementById("gauge-meter");
+    var note = document.getElementById("note");
+    var rulesEl = document.getElementById("rules");
+
+    var tone = "unknown";
+    if(result.outcome === "Severe") tone = "severe";
+    else if(result.outcome === "Moderate") tone = "moderate";
+    else if(result.outcome === "Mild") tone = "mild";
+    else tone = "unknown";
+
+    gauge.style.background = "var(--" + tone + "-bg)";
+    gauge.style.color = "var(--" + tone + ")";
+
+    if(!allSet(state)){
+      val.textContent = "Select all four fields";
+      meter.querySelectorAll("i").forEach(function(i){ i.classList.remove("on"); });
+    } else {
+      val.textContent = LABELS[result.outcome] || result.outcome;
+      var fillCount = result.outcome==="Mild" ? 1 : result.outcome==="Moderate" ? 2 : result.outcome==="Severe" ? 3 : 0;
+      meter.querySelectorAll("i").forEach(function(i,idx){
+        i.classList.toggle("on", idx < fillCount);
+      });
+    }
+
+    note.className = "note";
+    if(allSet(state) && result.outcome === "Unknown"){
+      note.textContent = "No rule in this set covers this exact combination. Reported as Unknown rather than forced into a severity class.";
+      note.classList.add("show");
+    } else if(allSet(state) && result.outcome === "Conflict"){
+      note.textContent = "Height = Moderate triggers two single-condition rules that disagree (Severe vs Mild) and no priority policy breaks the tie. Treat this case as needing a human judgment call or a tie-break rule (e.g. weight or injury type) before trusting an automated output.";
+      note.classList.add("show", "conflict");
+    } else {
+      note.classList.remove("show");
+    }
+
+    rulesEl.innerHTML = "";
+    RULES.forEach(function(r, idx){
+      var fired = allSet(state) && result.fired.indexOf(r.id) !== -1;
+      var div = document.createElement("div");
+      div.className = "rule" + (fired ? " fired" : "");
+      div.innerHTML =
+        '<div class="num">' + (idx+1) + '</div>' +
+        '<div class="txt">' + r.text() + '<br><span style="opacity:.75">source: ' + r.source + '</span></div>';
+      rulesEl.appendChild(div);
+    });
+  }
+
+  document.querySelectorAll(".seg").forEach(function(seg){
+    seg.addEventListener("click", function(e){
+      var btn = e.target.closest("button[data-group]");
+      if(!btn) return;
+      state[btn.dataset.group] = btn.dataset.value;
+      render();
+    });
+  });
+
+  function boot(data){
+    if(data && typeof data === "object"){
+      ["height","weight","position","injury"].forEach(function(k){
+        if(data[k]) state[k] = data[k];
+      });
+    }
+    render();
+  }
+
+  try{
+    if(window.claude && window.claude.hot){
+      window.claude.hot.snapshot(function(){ return state; });
+      window.claude.hot.ready ? window.claude.hot.ready(boot) : boot(window.claude.hot.data);
+    } else {
+      boot();
+    }
+  }catch(e){ boot(); }
+})();
+</script>
+
+</body></html>

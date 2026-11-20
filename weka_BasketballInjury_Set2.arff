@@ -1,0 +1,19 @@
+@relation Basketball_Injury.symbolic
+
+@attribute Height_cm {Low, Moderate, High}
+@attribute Weight_kg {Light, Mid, Heavy}
+@attribute Position {Guard, Center, Forward}
+@attribute Injury_Type {Upper_Extremity, Lower_Extremity}
+@attribute Injury_Severity {Severe, Moderate, Mild}
+
+@data
+High,Heavy,Forward,Lower_Extremity,Moderate
+High,Light,Guard,Upper_Extremity,Mild
+Low,Mid,Guard,Lower_Extremity,Moderate
+High,Mid,Forward,Lower_Extremity,Moderate
+High,Light,Guard,Lower_Extremity,Severe
+Moderate,Light,Center,Lower_Extremity,Moderate
+High,Light,Center,Lower_Extremity,Moderate
+Moderate,Light,Guard,Lower_Extremity,Moderate
+High,Heavy,Guard,Upper_Extremity,Mild
+High,Heavy,Forward,Lower_Extremity,Moderate
